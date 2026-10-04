@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #15181e;
+            --bg-raised: #1b1f27;
+            --text: #e9e5db;
+            --text-muted: #8a8e98;
+            --accent: #c9a24b;
+            --border: #272c36;
+            --danger: #b36a5e;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            padding: 64px 24px 80px;
+        }
+        main { width: 100%; max-width: 580px; }
+
+        header { margin-bottom: 40px; }
+        h1 {
+            font-family: 'Source Serif 4', serif;
+            font-weight: 600;
+            font-size: 2.2rem;
+            margin: 0 0 6px;
+            letter-spacing: -0.01em;
+        }
+        header p { margin: 0; color: var(--text-muted); font-size: 0.95rem; }
+
+        .composer {
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 18px;
+            margin-bottom: 48px;
+        }
+        textarea, input[type=text] {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            outline: none;
+        }
+        textarea { min-height: 90px; resize: vertical; }
+        textarea::placeholder, input::placeholder { color: var(--text-muted); }
+
+        .composer-footer { display: flex; justify-content: flex-end; margin-top: 10px; }
+        button {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+        }
+        .save-btn { background: var(--accent); color: #1c1708; padding: 9px 18px; border-radius: 5px; }
+        .save-btn:hover { filter: brightness(1.08); }
+
+        .section-label { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 14px; }
+
+        .entry { padding: 18px 0; border-bottom: 1px solid var(--border); }
+        .entry-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+        .entry p { margin: 0; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+        .entry-actions { display: flex; gap: 14px; flex-shrink: 0; }
+        .entry-actions button { background: none; color: var(--text-muted); font-size: 0.82rem; padding: 2px 0; }
+        .entry-actions button:hover { color: var(--text); }
+        .entry-actions .delete-btn:hover { color: var(--danger); }
+
+        .edit-row {
+            display: none;
+            margin-top: 12px;
+            gap: 10px;
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+        }
+        .edit-row.open { display: flex; }
+        .edit-row input {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 7px 10px;
+            font-size: 0.9rem;
+        }
+        .edit-row .save-btn { padding: 7px 14px; font-size: 0.85rem; }
+
+        .empty { color: var(--text-muted); font-size: 0.95rem; padding: 20px 0; }
+
+        .show-more {
+            display: block;
+            margin: 28px auto 0;
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 9px 20px;
+            border-radius: 5px;
+            font-size: 0.88rem;
+        }
+        .show-more:hover { color: var(--text); border-color: var(--text-muted); }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <h1>Notes</h1>
+        <p>A quiet place to write things down.</p>
+    </header>
+
+    <div class="composer">
+        <textarea id="noteInput" placeholder="Write a note..."></textarea>
+        <div class="composer-footer">
+            <button class="save-btn" onclick="addNote()">Save entry</button>
+        </div>
+    </div>
+
+    <div class="section-label">Recent entries</div>
+    <div id="entries"></div>
+    <button class="show-more" id="showMoreBtn" onclick="showMore()">Show more</button>
+</main>
+
+<script>
+    let allNotes = [];
+    let visibleCount = 5;
+    const PAGE_SIZE = 10;
+
+    async function loadNotes() {
+        const res = await fetch('/api/notes');
+        allNotes = await res.json();
+        allNotes.sort((a, b) => b.id - a.id);
+        visibleCount = 5;
+        render();
+    }
+
+    function render() {
+        const container = document.getElementById('entries');
+        container.innerHTML = '';
+
+        if (allNotes.length === 0) {
+            container.innerHTML = '<div class="empty">No entries yet. Write your first one above.</div>';
+            document.getElementById('showMoreBtn').style.display = 'none';
+            return;
+        }
+
+        const visible = allNotes.slice(0, visibleCount);
+        visible.forEach(note => container.appendChild(buildEntry(note)));
+
+        const btn = document.getElementById('showMoreBtn');
+        btn.style.display = visibleCount < allNotes.length ? 'block' : 'none';
+    }
+
+    function buildEntry(note) {
+        const entry = document.createElement('div');
+        entry.className = 'entry';
+
+        const top = document.createElement('div');
+        top.className = 'entry-top';
+
+        const p = document.createElement('p');
+        p.textContent = note.content;
+
+        const actions = document.createElement('div');
+        actions.className = 'entry-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.onclick = () => editRow.classList.toggle('open');
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = () => deleteNote(note.id);
+
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+        top.appendChild(p);
+        top.appendChild(actions);
+
+        const editRow = document.createElement('div');
+        editRow.className = 'edit-row';
+
+        const editInput = document.createElement('input');
+        editInput.type = 'text';
+        editInput.placeholder = 'Add an update...';
+
+        const editSave = document.createElement('button');
+        editSave.className = 'save-btn';
+        editSave.textContent = 'Save';
+        editSave.onclick = () => submitEdit(note, editInput.value);
+
+        editRow.appendChild(editInput);
+        editRow.appendChild(editSave);
+
+        entry.appendChild(top);
+        entry.appendChild(editRow);
+        return entry;
+    }
+
+    function showMore() {
+        visibleCount += PAGE_SIZE;
+        render();
+    }
+
+    async function addNote() {
+        const input = document.getElementById('noteInput');
+        const content = input.value.trim();
+        if (!content) return;
+        await fetch('/api/create?edit=false', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+        input.value = '';
+        loadNotes();
+    }
+
+    async function submitEdit(note, newText) {
+        const trimmed = newText.trim();
+        if (!trimmed) return;
+        await fetch('/api/create?edit=true', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: note.id, content: trimmed })
+        });
+        loadNotes();
+    }
+
+    async function deleteNote(id) {
+        await fetch('/api/delete/' + id, { method: 'DELETE' });
+        loadNotes();
+    }
+
+    loadNotes();
+</script>
+</body>
+</html>
